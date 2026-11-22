@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tuition FX Risk Simulator: GBP/LKR</title>
+<style>
+  :root {
+    --bg: #f7f6f2; --panel: #ffffff; --ink: #0b0b0b; --ink2: #52514e; --muted: #8a8984;
+    --grid: #e6e5e0; --line: #d7d6d0; --blue: #2a78d6; --orange: #eb6834; --aqua: #1baf7a;
+    --red: #e34948; --good: #0f7b49; --warn: #a15c00;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  header { padding: 18px 24px 8px; }
+  header h1 { margin: 0; font-size: 21px; letter-spacing: -0.01em; }
+  header p { margin: 4px 0 0; color: var(--ink2); max-width: 980px; }
+  main { display: grid; grid-template-columns: 300px 1fr; gap: 16px; padding: 12px 24px 24px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .controls h2, .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink2); margin: 0 0 10px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: flex; justify-content: space-between; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+  .field label output { font-weight: 500; color: var(--ink2); font-variant-numeric: tabular-nums; }
+  .field input[type=range] { width: 100%; accent-color: var(--blue); }
+  .field select, .field input[type=number] { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff; }
+  .field .hint { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .field.disabled { opacity: .45; }
+  .btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 6px 0 10px; }
+  button { font: inherit; font-weight: 600; padding: 8px 6px; border-radius: 7px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
+  button:hover { border-color: var(--ink2); }
+  button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  button.wide { width: 100%; }
+  button:disabled { opacity: .5; cursor: default; }
+  .status { font-size: 12.5px; color: var(--ink2); min-height: 18px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  @media (max-width: 1200px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+  .kpi .label { font-size: 12px; color: var(--ink2); }
+  .kpi .value { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .kpi .sub { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .charts { display: grid; grid-template-columns: 1.25fr 1fr; gap: 14px; }
+  .charts .full { grid-column: 1 / -1; }
+  @media (max-width: 1100px) { .charts { grid-template-columns: 1fr; } }
+  canvas { width: 100%; height: 280px; display: block; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink2); margin-top: 6px; }
+  .legend span::before { content: ""; display: inline-block; width: 14px; height: 3px; border-radius: 2px; background: var(--c); margin-right: 6px; vertical-align: middle; }
+  .legend span.dash::before { background: repeating-linear-gradient(90deg, var(--c) 0 4px, transparent 4px 7px); }
+  .legend span.band::before { height: 9px; opacity: .35; }
+  .check { margin-top: 14px; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line); background: #fff; font-size: 13px; }
+  .check.pass { border-color: #9fd8bd; background: #effaf4; }
+  .check.fail { border-color: #f2b8a2; background: #fff4ef; }
+  .check b.ok { color: var(--good); } .check b.bad { color: var(--red); }
+  details.about { margin: 0 24px 28px; }
+  details.about summary { cursor: pointer; font-weight: 650; font-size: 15px; }
+  details.about .body { margin-top: 10px; max-width: 980px; }
+  details.about h3 { font-size: 14px; margin: 16px 0 4px; }
+  table.ref { border-collapse: collapse; font-size: 13px; margin: 6px 0; }
+  table.ref th, table.ref td { border-bottom: 1px solid var(--grid); padding: 4px 10px; text-align: right; font-variant-numeric: tabular-nums; }
+  table.ref th:first-child, table.ref td:first-child { text-align: left; }
+  code { background: #f0efea; padding: 1px 4px; border-radius: 4px; font-size: 12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tuition FX Risk Simulator: GBP/LKR</h1>
+  <p>How many extra rupees should a Sri Lankan family set aside today so that a pound-denominated tuition payment
+  is covered with a chosen confidence? This page simulates thousands of possible future exchange-rate paths in your browser
+  and estimates the reserve (Value at Risk) and the average shortfall in bad cases (Expected Shortfall).</p>
+</header>
+
+<main>
+  <section class="card controls" aria-label="Controls">
+    <h2>Parameters</h2>
+    <div class="field">
+      <label for="model">Model</label>
+      <select id="model">
+        <option value="gbm">Geometric Brownian motion (GBM)</option>
+        <option value="regime">Regime switching (calm / crisis)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="amount">Tuition payment <output id="amountOut"></output></label>
+      <input type="range" id="amount" min="5000" max="60000" step="1000" value="20000">
+    </div>
+    <div class="field">
+      <label for="months">Months until payment <output id="monthsOut"></output></label>
+      <input type="range" id="months" min="1" max="24" step="1" value="6">
+    </div>
+    <div class="field">
+      <label for="s0"><span>Today's rate S<sub>0</sub> (LKR per GBP)</span></label>
+      <input type="number" id="s0" step="0.01" min="50" max="2000" value="435.56">
+      <div class="hint">CBSL indicative rate on 20 Nov 2026: 435.5638</div>
+    </div>
+    <div class="field" id="muField">
+      <label for="mu">Drift μ (per year) <output id="muOut"></output></label>
+      <input type="range" id="mu" min="-20" max="40" step="0.1" value="6.4">
+      <div class="hint">Calibrated: 6.41% ± 3.18% (1 SE)</div>
+    </div>
+    <div class="field" id="sigmaField">
+      <label for="sigma">Volatility σ (per year) <output id="sigmaOut"></output></label>
+      <input type="range" id="sigma" min="2" max="60" step="0.1" value="11.6">
+      <div class="hint">Calibrated: 11.63% ± 0.15%</div>
+    </div>
+    <div class="field" id="regimeField">
+      <label for="startRegime">Regime on the planning date</label>
+      <select id="startRegime">
+        <option value="filtered">Estimated today (0.8% crisis)</option>
+        <option value="calm">Calm</option>
+        <option value="crisis">Crisis</option>
+      </select>
+      <div class="hint">Regime parameters are fixed at the values fitted to CBSL data (see About).</div>
+    </div>
+    <div class="field">
+      <label for="alpha">Confidence level</label>
+      <select id="alpha">
+        <option value="0.90">90%</option>
+        <option value="0.95" selected>95%</option>
+        <option value="0.975">97.5%</option>
+        <option value="0.99">99%</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="npaths">Paths to simulate</label>
+      <select id="npaths">
+        <option value="20000">20,000</option>
+        <option value="50000">50,000</option>
+        <option value="100000" selected>100,000</option>
+        <option value="200000">200,000</option>
+      </select>
+      <div class="hint">Run in independent batches of 5,000 paths; the confidence interval is taken across batches.</div>
+    </div>
+    <div class="field">
+      <label for="seed">Random seed</label>
+      <input type="number" id="seed" value="42" step="1" min="0">
+    </div>
+    <div class="btns">
+      <button id="startBtn" class="primary">Start</button>
+      <button id="pauseBtn">Pause</button>
+      <button id="resetBtn">Reset</button>
+    </div>
+    <button id="refBtn" class="wide">Load notebook reference case</button>
+    <p class="status" id="status" role="status"></p>
+  </section>
+
+  <section aria-label="Results">
+    <div class="kpis">
+      <div class="kpi"><div class="label">Budget at today's rate</div><div class="value" id="kBudget">–</div><div class="sub" id="kBudgetSub"></div></div>
+      <div class="kpi"><div class="label" id="kVarLabel">Extra reserve (95% VaR)</div><div class="value" id="kVar">–</div><div class="sub" id="kVarSub">press Start</div></div>
+      <div class="kpi"><div class="label" id="kEsLabel">Average bad-case shortfall (95% ES)</div><div class="value" id="kEs">–</div><div class="sub" id="kEsSub"></div></div>
+      <div class="kpi"><div class="label">Total rupees to hold</div><div class="value" id="kTotal">–</div><div class="sub" id="kTotalSub"></div></div>
+    </div>
+    <div class="charts">
+      <div class="card">
+        <h2>Exchange-rate paths</h2>
+        <canvas id="cPaths" aria-label="Simulated exchange-rate paths"></canvas>
+        <div class="legend">
+          <span style="--c:#52514e">CBSL history</span>
+          <span style="--c:#2a78d6">sample simulated paths</span>
+          <span class="band" style="--c:#2a78d6">5–95% band</span>
+          <span style="--c:#eb6834">rate at the VaR level</span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Distribution of the shortfall</h2>
+        <canvas id="cHist" aria-label="Histogram of the rupee shortfall"></canvas>
+        <div class="legend">
+          <span style="--c:#eb6834">VaR (reserve)</span>
+          <span class="dash" style="--c:#e34948">ES</span>
+        </div>
+      </div>
+      <div class="card full">
+        <h2>Convergence of the VaR estimate</h2>
+        <canvas id="cConv" style="height:220px" aria-label="VaR estimate against number of paths"></canvas>
+        <div class="legend">
+          <span style="--c:#2a78d6">running estimate</span>
+          <span class="band" style="--c:#2a78d6">95% confidence interval</span>
+          <span class="dash" style="--c:#0b0b0b" id="analyticLegend">closed-form GBM value</span>
+        </div>
+      </div>
+    </div>
+    <div class="check" id="checkBox">Reference check: press <b>Load notebook reference case</b> and then <b>Start</b> to compare
+      this page with the notebook result.</div>
+  </section>
+</main>
+
+<details class="about" id="about">
+  <summary>About / How to use</summary>
+  <div class="body">
+    <h3>How to use</h3>
+    <ol>
+      <li>Choose a model, the tuition amount, the months until payment and the confidence level.</li>
+      <li>Press <b>Start</b>. Paths are simulated in batches of 5,000; the charts and numbers update live. <b>Pause</b> stops the run, and pressing <b>Start</b> again continues it.
+          <b>Reset</b> clears the results (changing any parameter also resets).</li>
+      <li>Read the outputs: <b>Extra reserve</b> is the number of rupees to set aside today on top of the budget at today's rate, so that the payment is covered with the chosen confidence.
+          <b>Average bad-case shortfall</b> is how much is needed on average when that confidence is exceeded. The ± figure is a 95% confidence interval over batches.</li>
+    </ol>
+    <h3>Try this</h3>
+    <p>Keep GBM, 6 months, 95%. Note the reserve. Now switch to the regime model and set the starting regime to <b>Crisis</b>: the reserve rises sharply. That shows why
+    planning during a currency crisis is far more expensive than planning in calm times. Then set the confidence to 99% and compare the two models. The regime model's heavier tail now matters much more.</p>
+    <h3>The model</h3>
+    <p><b>GBM:</b> dS = μS dt + σS dW, simulated with the exact solution S<sub>T</sub> = S<sub>0</sub> exp((μ − σ²/2)T + σ√T Z), Z ~ N(0,1), for the reserve, and daily exact steps for the drawn paths.
+    The shortfall is L = amount × (S<sub>T</sub> − S<sub>0</sub>). VaR is the α-quantile of L; ES is the mean of L beyond the VaR. For GBM the closed-form lognormal VaR is also shown as a check.</p>
+    <p><b>Regime switching:</b> a hidden two-state Markov chain (calm/crisis) moves once per CBSL business day (241 per year). Given the regime, the daily log-return is normal with that regime's mean and standard deviation.
+    Fitted by maximum likelihood (Hamilton filter) to CBSL daily rates, 29 Jul 2013 – 20 Nov 2026:</p>
+    <table class="ref">
+      <tr><th>Regime</th><th>mean (per year)</th><th>volatility (per year)</th><th>P(stay, per day)</th></tr>
+      <tr><td>Calm</td><td>+1.4%</td><td>7.8%</td><td>0.9832</td></tr>
+      <tr><td>Crisis</td><td>+51.1%</td><td>29.9%</td><td>0.8246</td></tr>
+    </table>
+    <p>Random numbers come from a seeded xoshiro128** generator, with normal variates from the Box–Muller transform. Everything runs in your browser; nothing is sent anywhere.</p>
+    <h3>Reference results from the notebook (GBP 20,000, S<sub>0</sub> = 435.5638, 95%)</h3>
+    <table class="ref">
+      <tr><th>Case</th><th>Notebook VaR (LKR)</th><th>Notebook 95% CI</th><th>Tolerance on this page</th></tr>
+      <tr><td>GBM, 6 months (closed form 1,552,271)</td><td>1,552,964</td><td>[1,550,818, 1,555,110]</td><td>within 1%</td></tr>
+      <tr><td>Regime switching, 6 months</td><td>1,624,835</td><td>[1,621,356, 1,628,314]</td><td>within 2%</td></tr>
+    </table>
+    <p>The page uses a different random-number stream from the notebook, so its estimate differs only by Monte Carlo error. The tolerance allows for that error (100,000 paths).</p>
+    <h3>Limitations</h3>
+    <ul>
+      <li>The CBSL indicative rate excludes the bank's selling spread on telegraphic transfers; add it to the reserve.</li>
+      <li>GBM assumes constant volatility and normal log-returns; real rupee returns have much heavier tails.</li>
+      <li>Neither model can foresee policy-driven breaks such as the March 2022 float of the rupee.</li>
+      <li>Interest earned on the rupee reserve, and hedging with forwards or foreign-currency accounts, are ignored.</li>
+    </ul>
+    <p>Data: Central Bank of Sri Lanka indicative exchange rates, via the Frankfurter API. Educational tool, not financial advice.</p>
+  </div>
+</details>
+
+<script>
+"use strict";
+// ------------------------------------------------------------------ constants
+const PPY = 241;                                   // CBSL observations per year
+const CAL = { s0: 435.5638, mu: 0.0641371784995694, sigma: 0.11632350296436608 };
+const MS = {
+  mu: [5.6814325913605486e-05, 0.002119831988711853],      // daily mean log-return
+  sd: [0.00504742958451354, 0.019248435726387313],          // daily sd
+  stay: [0.9831507379685337, 0.8246086490358069],           // P(stay) per day
+  filtered: [0.9919378468644963, 0.008062153135503724],     // regime probs on 20 Nov 2026
+};
+const REF = {
+  gbm:    { var: 1552964, lo: 1550818, hi: 1555110, analytic: 1552270.58, tol: 0.01 },
+  regime: { var: 1624835, lo: 1621356, hi: 1628314, tol: 0.02 },
+};
+const HIST = [[-481,366.04],[-479,369.65],[-477,367.37],[-475,369.12],[-473,369.87],[-471,370.99],[-469,367.66],[-467,369.15],[-465,366.67],[-463,368.95],[-461,371.86],[-459,368.27],[-457,366.94],[-455,363.37],[-453,369.28],[-451,366.01],[-449,359.25],[-447,362.95],[-445,364.73],[-443,367.63],[-441,371.34],[-439,370.66],[-437,369.61],[-435,373.37],[-433,371.16],[-431,367.55],[-429,372.55],[-427,372.24],[-425,373.38],[-423,375.25],[-421,374.51],[-419,372.39],[-417,377.08],[-415,380.84],[-413,380.76],[-411,382.17],[-409,384.42],[-407,385.45],[-405,383.49],[-403,383.89],[-401,383.78],[-399,382.93],[-397,388.6],[-395,380.38],[-393,386.58],[-391,395.12],[-389,400.03],[-387,398.64],[-385,399.17],[-383,402.55],[-381,398.29],[-379,398.11],[-377,399.75],[-375,397.73],[-373,397.33],[-371,400.3],[-369,402.77],[-367,406.54],[-365,404.49],[-363,403.58],[-361,405.22],[-359,405.51],[-357,405.71],[-355,405.94],[-353,405.66],[-351,404.19],[-349,405.37],[-347,408.09],[-345,411.4],[-343,411.59],[-341,412.31],[-339,409.64],[-337,409.93],[-335,407.72],[-333,404.32],[-331,403.58],[-329,404.58],[-327,407.93],[-325,407.42],[-323,403.27],[-321,400.67],[-319,400.6],[-317,400.26],[-315,404.82],[-313,406.36],[-311,407.49],[-309,406.54],[-307,406.08],[-305,407.53],[-303,406.91],[-301,408.38],[-299,408.43],[-297,405.89],[-295,409.77],[-293,408.48],[-291,409.17],[-289,412.18],[-287,408.95],[-285,408.54],[-283,407.26],[-281,406.41],[-279,406.69],[-277,406.51],[-275,405.4],[-273,402.97],[-271,403.69],[-269,406.94],[-267,405.93],[-265,404.44],[-263,404.67],[-261,403.4],[-259,400.5],[-257,399.64],[-255,400.3],[-253,400.78],[-251,399.47],[-249,402.96],[-247,404.29],[-245,403.27],[-243,403.53],[-241,408.4],[-239,407.58],[-237,408.49],[-235,411.61],[-233,410.61],[-231,413.83],[-229,413.46],[-227,413.89],[-225,414.64],[-223,418.97],[-221,418.23],[-219,417.31],[-217,417.5],[-215,419.73],[-213,417.2],[-211,415.34],[-209,415.14],[-207,414.51],[-205,416.63],[-203,418.04],[-201,423.85],[-199,427.6],[-197,423.36],[-195,421.95],[-193,420.85],[-191,422.57],[-189,421.34],[-187,421.1],[-185,417.44],[-183,418.4],[-181,418.02],[-179,417.04],[-177,413.41],[-175,415.65],[-173,418.81],[-171,415.99],[-169,412.41],[-167,415.73],[-165,417.69],[-163,419.53],[-161,418.82],[-159,417.21],[-157,417.68],[-155,416.9],[-153,422.3],[-151,427.97],[-149,426.76],[-147,427.99],[-145,427.56],[-143,430.01],[-141,430.84],[-139,434.47],[-137,433.98],[-135,436.04],[-133,437.54],[-131,438.15],[-129,433.5],[-127,439.49],[-125,448.45],[-123,438.48],[-121,440.62],[-119,446.17],[-117,449.19],[-115,448.65],[-113,451.79],[-111,446.88],[-109,444.4],[-107,444.53],[-105,441.24],[-103,442.0],[-101,444.32],[-99,445.02],[-97,449.11],[-95,448.6],[-93,449.48],[-91,449.21],[-89,450.68],[-87,452.87],[-85,451.74],[-83,450.26],[-81,449.23],[-79,448.76],[-77,452.36],[-75,451.59],[-73,451.28],[-71,452.76],[-69,450.98],[-67,451.5],[-65,449.17],[-63,450.61],[-61,448.63],[-59,444.3],[-57,443.07],[-55,444.39],[-53,444.43],[-51,445.62],[-49,444.27],[-47,444.88],[-45,443.73],[-43,442.4],[-41,435.35],[-39,437.4],[-37,437.66],[-35,436.32],[-33,436.98],[-31,437.56],[-29,438.35],[-27,439.2],[-25,439.88],[-23,441.67],[-21,444.4],[-19,444.66],[-17,442.14],[-15,445.5],[-13,445.68],[-11,448.89],[-9,444.73],[-7,443.69],[-5,440.07],[-3,438.55],[-1,437.08],[0,435.56]];                              // [day offset, LKR per GBP]; 0 = 20 Nov 2026
+const BATCH = 5000, N_DRAW = 60, N_BAND = 2000;
+const C = { blue: "#2a78d6", orange: "#eb6834", red: "#e34948", ink: "#0b0b0b", ink2: "#52514e",
+            muted: "#8a8984", grid: "#e6e5e0", axis: "#b5b4ad" };
+
+// ------------------------------------------------------------------ random numbers
+function xoshiro128ss(seed) {                       // seeded PRNG, uniform in [0, 1)
+  let s = splitmix32(seed >>> 0);
+  let a = s(), b = s(), c = s(), d = s();
+  return function () {
+    const t = b << 9; let r = Math.imul(b, 5); r = Math.imul((r << 7) | (r >>> 25), 9);
+    c ^= a; d ^= b; b ^= c; a ^= d; c ^= t; d = (d << 11) | (d >>> 21);
+    return (r >>> 0) / 4294967296;
+  };
+}
+function splitmix32(a) {
+  return function () {
+    a |= 0; a = (a + 0x9e3779b9) | 0; let t = a ^ (a >>> 16); t = Math.imul(t, 0x21f0aaad);
+    t ^= t >>> 15; t = Math.imul(t, 0x735a2d97); return ((t ^ (t >>> 15)) >>> 0);
+  };
+}
+function normalGen(u) {                             // Box–Muller, caches the second variate
+  let spare = null;
+  return function () {
+    if (spare !== null) { const z = spare; spare = null; return z; }
+    const u1 = 1 - u(), u2 = u();
+    const r = Math.sqrt(-2 * Math.log(u1)), th = 2 * Math.PI * u2;
+    spare = r * Math.sin(th); return r * Math.cos(th);
+  };
+}
+
+// ------------------------------------------------------------------ statistics helpers
+function normInv(p) {                               // Acklam's inverse normal CDF
+  const a = [-3.969683028665376e1, 2.209460984245205e2, -2.759285104469687e2, 1.383577518672690e2, -3.066479806614716e1, 2.506628277459239];
+  const b = [-5.447609879822406e1, 1.615858368580409e2, -1.556989798598866e2, 6.680131188771972e1, -1.328068155288572e1];
+  const c = [-7.784894002430293e-3, -3.223964580411365e-1, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
+  const d = [7.784695709041462e-3, 3.224671290700398e-1, 2.445134137142996, 3.754408661907416];
+  const pl = 0.02425;
+  if (p < pl) { const q = Math.sqrt(-2 * Math.log(p)); return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  if (p > 1 - pl) { const q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  const q = p - 0.5, r = q * q;
+  return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
+}
+function normCdf(x) {                               // Abramowitz–Stegun 7.1.26 via erf
+  const t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2);
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x / 2);
+  return x >= 0 ? 0.5 * (1 + y) : 0.5 * (1 - y);
+}
+const T975 = [12.7062,4.3027,3.1824,2.7764,2.5706,2.4469,2.3646,2.3060,2.2622,2.2281,2.2010,2.1788,2.1604,2.1448,2.1314,2.1199,2.1098,2.1009,2.0930,2.0860,2.0796,2.0739,2.0687,2.0639,2.0595,2.0555,2.0518,2.0484,2.0452,2.0423];   // exact t quantiles, df = 1..30
+function tInv975(df) {                              // Student-t 97.5% quantile: table, then Cornish–Fisher for df > 30
+  if (df <= 30) return T975[df - 1];
+  const z = 1.959963985;
+  return z + (z**3 + z) / (4 * df) + (5*z**5 + 16*z**3 + 3*z) / (96 * df**2) + (3*z**7 + 19*z**5 + 17*z**3 - 15*z) / (384 * df**3);
+}
+function meanCI(x) {
+  const n = x.length, m = x.reduce((s, v) => s + v, 0) / n;
+  if (n < 3) return { m, lo: NaN, hi: NaN };
+  const sd = Math.sqrt(x.reduce((s, v) => s + (v - m) ** 2, 0) / (n - 1));
+  const hw = tInv975(n - 1) * sd / Math.sqrt(n);
+  return { m, lo: m - hw, hi: m + hw };
+}
+function varEs(sorted, alpha) {                     // sorted ascending; numpy 'linear' quantile
+  const n = sorted.length, h = (n - 1) * alpha, lo = Math.floor(h), hi = Math.min(lo + 1, n - 1);
+  const v = sorted[lo] + (h - lo) * (sorted[hi] - sorted[lo]);
+  let s = 0, k = 0;
+  for (let i = n - 1; i >= 0 && sorted[i] >= v; i--) { s += sorted[i]; k++; }
+  return { v, es: s / k };
+}
+function analyticGbm(p) {                           // closed-form lognormal VaR and ES of the shortfall
+  const T = p.months / 12, z = normInv(p.alpha), s = p.sigma * Math.sqrt(T);
+  const q = p.s0 * Math.exp((p.mu - 0.5 * p.sigma ** 2) * T + s * z);
+  const tail = p.s0 * Math.exp(p.mu * T) * normCdf(s - z) / (1 - p.alpha);
+  return { v: p.amount * (q - p.s0), es: p.amount * (tail - p.s0), q };
+}
+
+// ------------------------------------------------------------------ state
+const $ = id => document.getElementById(id);
+let P, st, running = false, raf = null;
+
+function readParams() {
+  return {
+    model: $("model").value, amount: +$("amount").value, months: +$("months").value,
+    s0: +$("s0").value, mu: +$("mu").value / 100, sigma: +$("sigma").value / 100,
+    alpha: +$("alpha").value, n: +$("npaths").value, seed: Math.max(0, Math.floor(+$("seed").value || 0)),
+    startRegime: $("startRegime").value,
+  };
+}
+function initState() {
+  P = readParams();
+  const h = Math.max(1, Math.round(P.months / 12 * PPY));
+  const u = xoshiro128ss(P.seed), z = normalGen(u);
+  st = { h, u, z, done: 0, batches: [], esBatches: [], conv: [], histCounts: null, histRange: null,
+         drawPaths: [], band: null, analytic: P.model === "gbm" ? analyticGbm(P) : null, finished: false };
+  buildPreviewPaths();
+  updateKpis(); drawAll();
+  setStatus(`Ready: ${P.n.toLocaleString()} paths over ${h} business days. Press Start.`);
+}
+function startProbs() {
+  if (P.startRegime === "calm") return [1, 0];
+  if (P.startRegime === "crisis") return [0, 1];
+  return MS.filtered;
+}
+
+// Daily-stepped paths for the fan chart (sample lines + quantile band).
+function buildPreviewPaths() {
+  const u = xoshiro128ss(P.seed + 7919), z = normalGen(u), h = st.h;
+  const grid = new Array(h + 1).fill(0).map(() => new Float64Array(N_BAND));
+  const lines = [];
+  const dt = (P.months / 12) / h;
+  for (let i = 0; i < N_BAND; i++) {
+    let ls = 0, s = initialRegime(u);
+    grid[0][i] = P.s0;
+    const keep = i < N_DRAW ? [P.s0] : null;
+    for (let k = 1; k <= h; k++) {
+      if (P.model === "gbm") ls += (P.mu - 0.5 * P.sigma ** 2) * dt + P.sigma * Math.sqrt(dt) * z();
+      else { if (u() >= MS.stay[s]) s = 1 - s; ls += MS.mu[s] + MS.sd[s] * z(); }
+      const v = P.s0 * Math.exp(ls); grid[k][i] = v; if (keep) keep.push(v);
+    }
+    if (keep) lines.push(keep);
+  }
+  const q = (arr, p) => { const a = Float64Array.from(arr).sort(); const x = (a.length - 1) * p, l = Math.floor(x); return a[l] + (x - l) * (a[Math.min(l + 1, a.length - 1)] - a[l]); };
+  st.band = { lo: grid.map(g => q(g, 0.05)), mid: grid.map(g => q(g, 0.5)), hi: grid.map(g => q(g, 0.95)) };
+  st.allLines = lines; st.drawPaths = [];
+}
+function initialRegime(u) { const p = startProbs(); return u() < p[0] ? 0 : 1; }
+
+// One independent batch (= replication) of terminal shortfalls.
+function simulateBatch() {
+  const L = new Float64Array(BATCH), { u, z, h } = st;
+  if (P.model === "gbm") {
+    const T = P.months / 12, a = (P.mu - 0.5 * P.sigma ** 2) * T, b = P.sigma * Math.sqrt(T);
+    for (let i = 0; i < BATCH; i++) L[i] = P.amount * (P.s0 * Math.exp(a + b * z()) - P.s0);
+  } else {
+    const p0 = startProbs()[0], m = MS.mu, sd = MS.sd, stay = MS.stay;
+    for (let i = 0; i < BATCH; i++) {
+      let s = u() < p0 ? 0 : 1, ls = 0;
+      for (let k = 0; k < h; k++) { if (u() >= stay[s]) s = 1 - s; ls += m[s] + sd[s] * z(); }
+      L[i] = P.amount * (P.s0 * Math.exp(ls) - P.s0);
+    }
+  }
+  L.sort();
+  const r = varEs(L, P.alpha);
+  st.batches.push(r.v); st.esBatches.push(r.es); st.done += BATCH;
+  if (!st.histRange) {                             // fix histogram bins from the first batch
+    const lo = L[Math.floor(0.001 * BATCH)], hi = L[Math.floor(0.999 * BATCH)], pad = 0.15 * (hi - lo);
+    st.histRange = [lo - pad, hi + pad]; st.histCounts = new Float64Array(70);
+  }
+  const [hl, hh] = st.histRange, nb = st.histCounts.length;
+  for (let i = 0; i < BATCH; i++) { const j = Math.floor((L[i] - hl) / (hh - hl) * nb); if (j >= 0 && j < nb) st.histCounts[j]++; }
+  const ci = meanCI(st.batches);
+  st.conv.push({ n: st.done, m: ci.m, lo: ci.lo, hi: ci.hi });
+  const nDraw = Math.min(N_DRAW, Math.round(N_DRAW * st.done / P.n) + 4);
+  st.drawPaths = st.allLines.slice(0, nDraw);
+}
+
+function step() {
+  if (!running) return;
+  const t0 = performance.now();
+  while (st.done < P.n && performance.now() - t0 < 30) simulateBatch();
+  updateKpis(); drawAll();
+  if (st.done >= P.n) { running = false; st.finished = true; setStatus(`Finished: ${st.done.toLocaleString()} paths in ${st.batches.length} batches.`); refCheck(); syncButtons(); return; }
+  setStatus(`Running… ${st.done.toLocaleString()} / ${P.n.toLocaleString()} paths`);
+  raf = requestAnimationFrame(step);
+}
+
+// ------------------------------------------------------------------ output
+const lkr = x => isFinite(x) ? "LKR " + Math.round(x).toLocaleString("en-US") : "–";
+const lkrM = x => isFinite(x) ? (x / 1e6).toFixed(2) + "M" : "–";
+function updateKpis() {
+  const budget = P.amount * P.s0, pct = Math.round(P.alpha * 1000) / 10;
+  $("kBudget").textContent = lkr(budget);
+  $("kBudgetSub").textContent = `GBP ${P.amount.toLocaleString()} × ${P.s0.toFixed(2)}`;
+  $("kVarLabel").textContent = `Extra reserve (${pct}% VaR)`;
+  $("kEsLabel").textContent = `Average bad-case shortfall (${pct}% ES)`;
+  if (!st.batches.length) {
+    $("kVar").textContent = "–"; $("kEs").textContent = "–"; $("kTotal").textContent = "–";
+    $("kVarSub").textContent = st.analytic ? `closed form: ${lkr(st.analytic.v)}` : "press Start";
+    $("kEsSub").textContent = ""; $("kTotalSub").textContent = ""; return;
+  }
+  const v = meanCI(st.batches), e = meanCI(st.esBatches);
+  $("kVar").textContent = lkr(v.m);
+  const ciTxt = isFinite(v.lo) ? `± ${Math.round((v.hi - v.lo) / 2).toLocaleString()} (95% CI)` : "CI after 3 batches";
+  $("kVarSub").textContent = st.analytic ? `${ciTxt} · closed form ${lkrM(st.analytic.v)}` : `${ciTxt} · ${(100 * v.m / budget).toFixed(1)}% of budget`;
+  $("kEs").textContent = lkr(e.m);
+  $("kEsSub").textContent = isFinite(e.lo) ? `± ${Math.round((e.hi - e.lo) / 2).toLocaleString()} (95% CI)` : "";
+  $("kTotal").textContent = lkr(budget + v.m);
+  $("kTotalSub").textContent = `${(100 * v.m / budget).toFixed(1)}% above the budget at today's rate`;
+}
+function isRefCase() {
+  return P.amount === 20000 && P.months === 6 && Math.abs(P.s0 - 435.5638) < 0.01 && P.alpha === 0.95 &&
+    (P.model === "regime" ? P.startRegime === "filtered" : (Math.abs(P.mu - 0.064) < 0.0006 && Math.abs(P.sigma - 0.116) < 0.0006));
+}
+function refCheck() {
+  const box = $("checkBox");
+  if (!isRefCase()) { box.className = "check"; box.innerHTML = "Reference check: not the notebook reference case. Press <b>Load notebook reference case</b> to compare with the notebook."; return; }
+  const ref = REF[P.model], v = meanCI(st.batches);
+  const rel = v.m / ref.var - 1, ok = Math.abs(rel) <= ref.tol;
+  box.className = "check " + (ok ? "pass" : "fail");
+  const name = P.model === "gbm" ? "GBM" : "Regime switching";
+  box.innerHTML = `<b class="${ok ? "ok" : "bad"}">${ok ? "✓ PASS" : "✗ FAIL"}</b> Reference check (${name}, 6 months, GBP 20,000, 95%):
+    this page ${lkr(v.m)} vs notebook ${lkr(ref.var)}, difference ${(100 * rel).toFixed(2)}% (tolerance ±${100 * ref.tol}%).` +
+    (P.model === "gbm" ? ` Closed-form value: ${lkr(ref.analytic)}.` : "");
+  console.log("reference-check", JSON.stringify({ model: P.model, page: Math.round(v.m), notebook: ref.var, rel, pass: ok }));
+}
+function setStatus(t) { $("status").textContent = t; }
+function syncButtons() {
+  $("startBtn").disabled = running || st.finished; $("pauseBtn").disabled = !running;
+  $("startBtn").textContent = st.done > 0 && !st.finished ? "Resume" : "Start";
+}
+
+// ------------------------------------------------------------------ drawing
+function setupCanvas(cv) {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  cv.width = Math.max(1, Math.round(r.width * dpr)); cv.height = Math.max(1, Math.round(r.height * dpr));
+  const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, r.width, r.height);
+  return { ctx, W: r.width, H: r.height };
+}
+function niceTicks(lo, hi, n) {
+  const span = hi - lo || 1, step0 = span / n, mag = 10 ** Math.floor(Math.log10(step0));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= n) || 10 * mag;
+  const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+function frame(ctx, W, H, xr, yr, opt) {
+  const m = { l: 62, r: 14, t: 10, b: 30 };
+  const X = x => m.l + (x - xr[0]) / (xr[1] - xr[0]) * (W - m.l - m.r);
+  const Y = y => H - m.b - (y - yr[0]) / (yr[1] - yr[0]) * (H - m.t - m.b);
+  ctx.font = "11px system-ui, sans-serif"; ctx.lineWidth = 1;
+  for (const t of niceTicks(yr[0], yr[1], 5)) {
+    ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(m.l, Y(t)); ctx.lineTo(W - m.r, Y(t)); ctx.stroke();
+    ctx.fillStyle = C.ink2; ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillText(opt.yfmt(t), m.l - 6, Y(t));
+  }
+  for (const t of niceTicks(xr[0], xr[1], opt.nx || 6)) {
+    ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(X(t), m.t); ctx.lineTo(X(t), H - m.b); ctx.stroke();
+    ctx.fillStyle = C.ink2; ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillText(opt.xfmt(t), X(t), H - m.b + 5);
+  }
+  ctx.strokeStyle = C.axis; ctx.beginPath(); ctx.moveTo(m.l, m.t); ctx.lineTo(m.l, H - m.b); ctx.lineTo(W - m.r, H - m.b); ctx.stroke();
+  ctx.fillStyle = C.muted; ctx.textAlign = "right"; ctx.textBaseline = "bottom"; ctx.fillText(opt.xlabel, W - m.r, H - 1);
+  return { X, Y, m };
+}
+function polyline(ctx, xs, ys, X, Y) { ctx.beginPath(); xs.forEach((x, i) => i ? ctx.lineTo(X(x), Y(ys[i])) : ctx.moveTo(X(x), Y(ys[i]))); ctx.stroke(); }
+
+function drawPaths() {
+  const { ctx, W, H } = setupCanvas($("cPaths")), h = st.h;
+  const hist = HIST.filter(p => p[0] >= -Math.max(2 * h, 120));
+  const histShift = Math.abs(P.s0 - CAL.s0) < 0.01 ? 0 : null;     // only show history when S0 = actual rate
+  const b = st.band;
+  let ylo = Math.min(...b.lo), yhi = Math.max(...b.hi);
+  if (histShift === 0) { for (const p of hist) { ylo = Math.min(ylo, p[1]); yhi = Math.max(yhi, p[1]); } }
+  for (const l of st.drawPaths) for (const v of l) { ylo = Math.min(ylo, v); yhi = Math.max(yhi, v); }
+  const pad = 0.06 * (yhi - ylo); ylo -= pad; yhi += pad;
+  const x0 = histShift === 0 ? hist[0][0] : 0;
+  const { X, Y } = frame(ctx, W, H, [x0, h], [ylo, yhi], { yfmt: v => v.toFixed(0), xfmt: v => v.toFixed(0), xlabel: "business days from today" });
+  const days = Array.from({ length: h + 1 }, (_, i) => i);
+  ctx.fillStyle = "rgba(42,120,214,0.14)"; ctx.beginPath();
+  days.forEach(d => ctx.lineTo(X(d), Y(b.hi[d]))); for (let d = h; d >= 0; d--) ctx.lineTo(X(d), Y(b.lo[d])); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(42,120,214,0.35)"; ctx.lineWidth = 0.7;
+  for (const l of st.drawPaths) polyline(ctx, days, l, X, Y);
+  ctx.strokeStyle = C.blue; ctx.lineWidth = 1.8; polyline(ctx, days, b.mid, X, Y);
+  if (histShift === 0) { ctx.strokeStyle = C.ink2; ctx.lineWidth = 1.4; polyline(ctx, hist.map(p => p[0]), hist.map(p => p[1]), X, Y); }
+  ctx.setLineDash([4, 3]); ctx.strokeStyle = C.muted; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(X(x0), Y(P.s0)); ctx.lineTo(X(h), Y(P.s0)); ctx.stroke(); ctx.setLineDash([]);
+  if (st.batches.length) {
+    const sv = P.s0 + meanCI(st.batches).m / P.amount;
+    ctx.fillStyle = C.orange; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(X(h), Y(sv), 5.5, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = C.ink; ctx.font = "12px system-ui, sans-serif"; ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+    ctx.fillText(`${(P.alpha * 100).toFixed(P.alpha === 0.975 ? 1 : 0)}%: ${sv.toFixed(1)}`, X(h) - 9, Y(sv) - 4);
+  }
+}
+function drawHist() {
+  const { ctx, W, H } = setupCanvas($("cHist"));
+  if (!st.histCounts) {
+    ctx.fillStyle = C.muted; ctx.font = "13px system-ui, sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("The distribution appears once the simulation starts.", W / 2, H / 2); return;
+  }
+  const [lo, hi] = st.histRange, cnt = st.histCounts, nb = cnt.length, w = (hi - lo) / nb, maxc = Math.max(...cnt);
+  const { X, Y } = frame(ctx, W, H, [lo / 1e6, hi / 1e6], [0, maxc / st.done * 100 * 1.12],
+    { yfmt: v => v.toFixed(1) + "%", xfmt: v => v.toFixed(1), xlabel: "shortfall (million LKR)", nx: 6 });
+  ctx.fillStyle = "rgba(42,120,214,0.55)";
+  for (let j = 0; j < nb; j++) {
+    const x0 = X((lo + j * w) / 1e6), x1 = X((lo + (j + 1) * w) / 1e6), y = Y(cnt[j] / st.done * 100);
+    ctx.fillRect(x0 + 0.5, y, Math.max(0.5, x1 - x0 - 1), Y(0) - y);
+  }
+  const v = meanCI(st.batches).m, e = meanCI(st.esBatches).m;
+  ctx.lineWidth = 2; ctx.strokeStyle = C.orange; ctx.beginPath(); ctx.moveTo(X(v / 1e6), Y(0)); ctx.lineTo(X(v / 1e6), 10); ctx.stroke();
+  ctx.setLineDash([5, 3]); ctx.strokeStyle = C.red; ctx.beginPath(); ctx.moveTo(X(e / 1e6), Y(0)); ctx.lineTo(X(e / 1e6), 10); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle = C.ink2; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X(0), Y(0)); ctx.lineTo(X(0), 10); ctx.stroke();
+}
+function drawConv() {
+  const { ctx, W, H } = setupCanvas($("cConv"));
+  $("analyticLegend").style.display = st.analytic ? "" : "none";
+  if (!st.conv.length) {
+    ctx.fillStyle = C.muted; ctx.font = "13px system-ui, sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("The running VaR estimate and its confidence interval appear here.", W / 2, H / 2); return;
+  }
+  const pts = st.conv.filter(p => isFinite(p.lo));
+  let ylo = Infinity, yhi = -Infinity;
+  for (const p of st.conv) { ylo = Math.min(ylo, p.m); yhi = Math.max(yhi, p.m); }
+  for (const p of pts) { ylo = Math.min(ylo, p.lo); yhi = Math.max(yhi, p.hi); }
+  if (st.analytic) { ylo = Math.min(ylo, st.analytic.v); yhi = Math.max(yhi, st.analytic.v); }
+  const pad = Math.max(0.1 * (yhi - ylo), 0.002 * Math.abs(yhi)); ylo -= pad; yhi += pad;
+  const { X, Y } = frame(ctx, W, H, [0, P.n], [ylo / 1e6, yhi / 1e6],
+    { yfmt: v => v.toFixed(3), xfmt: v => (v / 1000).toFixed(0) + "k", xlabel: "paths simulated", nx: 8 });
+  if (pts.length > 1) {
+    ctx.fillStyle = "rgba(42,120,214,0.15)"; ctx.beginPath();
+    pts.forEach(p => ctx.lineTo(X(p.n), Y(p.hi / 1e6))); for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(X(pts[i].n), Y(pts[i].lo / 1e6));
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.strokeStyle = C.blue; ctx.lineWidth = 2; polyline(ctx, st.conv.map(p => p.n), st.conv.map(p => p.m / 1e6), X, Y);
+  if (st.analytic) {
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = C.ink; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(X(0), Y(st.analytic.v / 1e6)); ctx.lineTo(X(P.n), Y(st.analytic.v / 1e6)); ctx.stroke(); ctx.setLineDash([]);
+  }
+}
+function drawAll() { drawPaths(); drawHist(); drawConv(); }
+
+// ------------------------------------------------------------------ wiring
+function syncLabels() {
+  $("amountOut").textContent = "GBP " + (+$("amount").value).toLocaleString();
+  $("monthsOut").textContent = $("months").value + (+$("months").value === 1 ? " month" : " months");
+  $("muOut").textContent = (+$("mu").value).toFixed(1) + "%";
+  $("sigmaOut").textContent = (+$("sigma").value).toFixed(1) + "%";
+  const reg = $("model").value === "regime";
+  $("muField").classList.toggle("disabled", reg); $("sigmaField").classList.toggle("disabled", reg);
+  $("mu").disabled = reg; $("sigma").disabled = reg;
+  $("regimeField").classList.toggle("disabled", !reg); $("startRegime").disabled = !reg;
+}
+function reset() {
+  running = false; if (raf) cancelAnimationFrame(raf);
+  syncLabels(); initState(); syncButtons();
+  $("checkBox").className = "check";
+  $("checkBox").innerHTML = isRefCase()
+    ? "Reference case loaded. Press <b>Start</b>; the check runs when the simulation finishes."
+    : "Reference check: press <b>Load notebook reference case</b> and then <b>Start</b> to compare this page with the notebook result.";
+}
+["model", "amount", "months", "s0", "mu", "sigma", "alpha", "npaths", "seed", "startRegime"].forEach(id => {
+  $(id).addEventListener("input", reset); $(id).addEventListener("change", reset);
+});
+$("startBtn").addEventListener("click", () => { if (st.finished) return; running = true; syncButtons(); raf = requestAnimationFrame(step); });
+$("pauseBtn").addEventListener("click", () => { running = false; if (raf) cancelAnimationFrame(raf); syncButtons(); setStatus(`Paused at ${st.done.toLocaleString()} paths.`); });
+$("resetBtn").addEventListener("click", reset);
+$("refBtn").addEventListener("click", () => {
+  $("amount").value = 20000; $("months").value = 6; $("s0").value = 435.5638; $("alpha").value = "0.95";
+  $("mu").value = 6.4; $("sigma").value = 11.6; $("npaths").value = "100000"; $("startRegime").value = "filtered";
+  // Use exact calibrated values (sliders round to 0.1%).
+  reset(); if (P.model === "gbm") { P.mu = CAL.mu; P.sigma = CAL.sigma; st.analytic = analyticGbm(P); buildPreviewPaths(); updateKpis(); drawAll(); }
+});
+window.addEventListener("resize", () => drawAll());
+syncLabels(); initState(); syncButtons();
+</script>
+</body>
+</html>

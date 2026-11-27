@@ -788,7 +788,7 @@ negligible. The Monte Carlo error itself is tiny by comparison (CI half-width ab
 the quantile estimator's RMSE falls like N^−0.49; Euler–Maruyama shows strong order 0.50 and weak order 1.00 and
 Milstein strong order 0.99, all matching theory; the Hamilton filter matches `statsmodels` to the third decimal; and
 simulated regime frequencies (0.913 / 0.087) match the stationary distribution (0.912 / 0.088). Vectorising across
-paths made the simulation roughly 25–30 times faster than pure Python loops, and the exact GBM sampler roughly 3,000 times faster or more (timings vary between runs).
+paths made the simulation roughly 25–40 times faster than pure Python loops, and the exact GBM sampler thousands of times faster (timings vary between runs and machines).
 
 **Practical reading.** For a payment 3 months away, a reserve of about 12% of the rupee budget is well supported by
 both the model and its backtest. For 6–12 months the model figures (18% and 28%) should be treated as a *minimum*:
@@ -823,6 +823,8 @@ using a forward contract or a foreign-currency account, removes the risk rather 
 TITLE = r"""
 # Simulating Currency Risk in Overseas Tuition Payments for Sri Lankan Families: A Monte Carlo Study
 
+## 1. Title and summary
+
 **Summary.** Sri Lankan families save for UK tuition in rupees but pay in pounds, so a weaker rupee between planning
 and payment leaves them short. This notebook models the GBP/LKR exchange rate (Central Bank of Sri Lanka daily
 indicative rates) with geometric Brownian motion and with a two-state calm/crisis Markov regime-switching model,
@@ -832,7 +834,7 @@ shortfall in the worst 5% of cases (Expected Shortfall). Every estimate is repor
 independent replications and checked against closed-form results; the models are then backtested against what
 actually happened, including the 2022 float of the rupee.
 
-*Run with **Runtime → Run all** (about 2–3 minutes on a free Colab runtime). All random seeds are fixed (master seed
+*Run with **Runtime → Run all** (about 5 minutes on a free Colab runtime). All random seeds are fixed (master seed
 `SEED = 20261113`); the CBSL data file is included in the repository. AI assistance is disclosed in `AI_USAGE_LOG.md`.*
 """
 
@@ -898,11 +900,11 @@ def _rename(cell, new_first_line):
 COLAB = r"""
 # Colab set-up: install packages and fetch the project code (skipped automatically when run inside the repository)
 import os, subprocess, sys
-REPO_URL = "https://github.com/<your-username>/fx-tuition-risk.git"   # <-- replace with your public repository URL
+REPO_URL = "https://github.com/DinethminMU/fx-tuition-risk.git"
 if not any(os.path.isdir(os.path.join(p, "src", "fxrisk")) for p in (".", "..")):
     if not os.path.isdir("fx-tuition-risk"):
         subprocess.run(["git", "clone", "--depth", "1", REPO_URL], check=True)
-    os.chdir("fx-tuition-risk/notebooks")
+    os.chdir("fx-tuition-risk/notebook")
 subprocess.run([sys.executable, "-m", "pip", "install", "-q", "numpy", "scipy", "pandas", "matplotlib", "statsmodels", "requests"], check=True)
 print("working directory:", os.getcwd())
 """
@@ -946,6 +948,6 @@ nb = nbf.v4.new_notebook()
 nb.cells = [nbf.v4.new_markdown_cell(s) if kind == "md" else nbf.v4.new_code_cell(s) for kind, s in cells]
 nb.metadata["kernelspec"] = {"name": "python3", "display_name": "Python 3", "language": "python"}
 nb.metadata["language_info"] = {"name": "python"}
-out = ROOT / "notebooks" / "fx_tuition_risk.ipynb"
+out = ROOT / "notebook" / "fx-tuition-risk.ipynb"
 nbf.write(nb, out)
 print(f"wrote {out} ({len(cells)} cells)")
